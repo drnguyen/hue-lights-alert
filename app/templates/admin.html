@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block nav %}
+<form method="post" action="/admin/logout" class="inline"><button type="submit" class="link">Log out</button></form>
+{% endblock %}
+{% block content %}
+<h1>Admin</h1>
+
+<!-- 1. Bridge -->
+<section class="card" id="bridge-section">
+  <h2>1. Hue Bridge</h2>
+  {% if bridge %}
+    <p class="ok">Paired with bridge <strong>{{ bridge.name or bridge.id or bridge.ip }}</strong>
+      at <code>{{ bridge.ip }}</code>{% if bridge.id %} (id <code>{{ bridge.id }}</code>){% endif %},
+      since {{ bridge.paired_at }}.</p>
+    <button class="danger" id="unpair-btn">Unpair / reset</button>
+  {% else %}
+    <p>No bridge is paired yet. Search your network, pick a bridge, then press the physical link button when asked.</p>
+    <div class="row">
+      <button class="primary" id="discover-btn">Search for Hue Bridge</button>
+      <span class="muted">or enter the bridge IP manually:</span>
+      <input id="manual-ip" placeholder="192.168.1.10" size="16">
+      <button id="manual-pair-btn">Use this IP</button>
+    </div>
+    <p class="hint muted">mDNS discovery needs host networking (Linux). On Docker Desktop for macOS/Windows use cloud discovery (same network) or the manual IP.</p>
+    <ul id="bridge-results" class="list"></ul>
+    <div id="pair-status" class="pair-status" hidden>
+      <div class="pulse"></div>
+      <div>
+        <strong>Press the link button on your Hue Bridge</strong>
+        <div class="muted" id="pair-message">Waiting… (<span id="pair-countdown">60</span>s left)</div>
+      </div>
+      <button id="pair-cancel-btn">Cancel</button>
+    </div>
+  {% endif %}
+</section>
+
+{% if bridge %}
+<!-- 2. Lights -->
+<section class="card">
+  <h2>2. Alert lights</h2>
+  <p class="muted">Select which lights should show alerts.</p>
+  <div id="lights-error" class="error" hidden></div>
+  <table class="table" id="lights-table">
+    <thead><tr><th></th><th>ID</th><th>Name</th><th>Type</th><th>State</th></tr></thead>
+    <tbody><tr><td colspan="5" class="muted">Loading lights…</td></tr></tbody>
+  </table>
+  <div class="row">
+    <button class="primary" id="save-lights-btn">Save selection</button>
+    <button id="reload-lights-btn">Reload</button>
+    <span class="muted" id="lights-summary">{{ selected_lights|length }} selected</span>
+  </div>
+</section>
+
+<!-- 3. Settings -->
+<section class="card">
+  <h2>3. Glow levels</h2>
+  <form id="settings-form" class="grid">
+    <label>Min brightness <output id="min-out">{{ settings.min_brightness }}</output>
+      <input type="range" name="min_brightness" min="1" max="254" value="{{ settings.min_brightness }}" oninput="document.getElementById('min-out').value=this.value"></label>
+    <label>Max brightness <output id="max-out">{{ settings.max_brightness }}</output>
+      <input type="range" name="max_brightness" min="1" max="254" value="{{ settings.max_brightness }}" oninput="document.getElementById('max-out').value=this.value"></label>
+    <label>Glow period (seconds)
+      <input type="number" name="glow_period_seconds" min="0.4" max="30" step="0.1" value="{{ settings.glow_period_seconds }}"></label>
+    <div><button type="submit" class="primary">Save levels</button></div>
+  </form>
+</section>
+
+<!-- 4. Test -->
+<section class="card">
+  <h2>4. Test alert</h2>
+  <div class="row">
+    <label>Level
+      <select id="test-level"><option value="amber">Amber</option><option value="red">Red</option></select></label>
+    <label>Mode
+      <select id="test-mode"><option value="glow">Glow (pulsing)</option><option value="dead">Dead (static)</option></select></label>
+    <label>Duration (s) <input type="number" id="test-duration" min="1" max="600" value="10" size="5"></label>
+    <button class="primary" id="test-btn">Run test</button>
+    <button class="danger" id="clear-btn">Clear alert</button>
+  </div>
+  <p id="alert-status" class="status" data-active="{{ 'true' if alert.active else 'false' }}">
+    {% if alert.active %}Alert active: {{ alert.level }} / {{ alert.mode }} (source {{ alert.source }}){% else %}No active alert{% endif %}
+  </p>
+</section>
+
+<!-- 5. Tokens -->
+<section class="card">
+  <h2>5. API tokens</h2>
+  <p class="muted">Other applications authenticate with these tokens. A token is shown only once, right after it is generated.</p>
+  <div class="row">
+    <input id="token-name" placeholder="Token name (e.g. monitoring)" size="28">
+    <button class="primary" id="token-create-btn">Generate token</button>
+  </div>
+  <div id="new-token" class="new-token" hidden>
+    <strong>Copy this token now, it will not be shown again:</strong>
+    <code id="new-token-value"></code>
+    <button id="copy-token-btn">Copy</button>
+  </div>
+  <table class="table" id="tokens-table">
+    <thead><tr><th>Name</th><th>Prefix</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+    <tbody>
+      {% for t in tokens %}
+      <tr data-id="{{ t.id }}"><td>{{ t.name }}</td><td><code>{{ t.prefix }}…</code></td><td>{{ t.created_at }}</td><td>{{ t.last_used_at or "never" }}</td>
+        <td><button class="danger small revoke-btn" data-id="{{ t.id }}">Revoke</button></td></tr>
+      {% else %}
+      <tr class="empty"><td colspan="5" class="muted">No tokens yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% set n = 6 if bridge else 2 %}
+{% if tls.enabled %}
+<!-- HTTPS certificate -->
+<section class="card" id="tls-section">
+  <h2>{{ n }}. HTTPS certificate</h2>
+  {% if tls.error %}
+    <p class="error">{{ tls.error }}</p>
+  {% else %}
+    <p class="muted">This server uses {% if tls.custom %}the certificate provided via <code>TLS_CERT_FILE</code>{% else %}a self-signed certificate generated on first start and kept in the data volume{% endif %}.
+      Install it on client machines, or pass it to calling applications, so they can verify the connection.</p>
+    <table class="table kv">
+      <tr><th>Subject</th><td>{{ tls.subject }}{% if tls.self_signed %} <span class="muted">(self-signed)</span>{% endif %}</td></tr>
+      <tr><th>Valid for</th><td>{% for s in tls.sans %}<code>{{ s }}</code> {% endfor %}</td></tr>
+      <tr><th>Expires</th><td>{{ tls.not_after }} <span class="muted">({{ tls.days_remaining }} days left)</span></td></tr>
+      <tr><th>SHA-256</th><td><code class="fp">{{ tls.fingerprint_sha256 }}</code></td></tr>
+    </table>
+    <div class="row">
+      <a class="button primary" href="/admin/tls/certificate" download="hue-lights.crt">Download certificate</a>
+      <span class="muted hint">To add more hostnames or IPs, set <code>TLS_HOSTNAMES</code> and restart with <code>TLS_REGENERATE=true</code> once.</span>
+    </div>
+  {% endif %}
+</section>
+{% set n = n + 1 %}
+{% endif %}
+
+<!-- API docs -->
+{% include "api_docs.html" %}
+{% endblock %}
+{% block scripts %}<script src="/static/admin.js?v=2"></script>{% endblock %}

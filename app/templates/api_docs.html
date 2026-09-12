@@ -1,0 +1,68 @@
+<section class="card" id="api-docs">
+  <h2>{{ n }}. API documentation</h2>
+  <p>Base URL: <code>{{ base_url }}</code>. Interactive reference: <a href="/docs" target="_blank" rel="noopener">Swagger UI</a> · <a href="/redoc" target="_blank" rel="noopener">ReDoc</a> · <a href="/openapi.json" target="_blank" rel="noopener">openapi.json</a>.</p>
+
+  <h3>Authentication</h3>
+  <p>Every alert endpoint requires a token generated above, sent as <code>Authorization: Bearer &lt;token&gt;</code> (or <code>X-API-Key: &lt;token&gt;</code>). Missing or invalid tokens return <code>401</code>.</p>
+
+{% if tls.enabled %}
+  <h3>TLS</h3>
+  <p>The server uses {% if tls.custom %}the configured certificate{% else %}a self-signed certificate{% endif %}. Clients must trust it explicitly, otherwise verification fails. Download it above (<code>hue-lights.crt</code>) and either install it in the client's trust store or pass it per request:</p>
+  <pre><code># curl
+curl --cacert hue-lights.crt {{ base_url }}/api/v1/health
+
+# Python requests
+requests.get("{{ base_url }}/api/v1/health", verify="hue-lights.crt")
+
+# Skip verification (testing only)
+curl -k {{ base_url }}/api/v1/health</code></pre>
+{% endif %}
+
+  <h3>Endpoints</h3>
+  <table class="table">
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST</code></td><td><code>/api/v1/alert</code></td><td>Start an alert. Replaces any running alert.</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/v1/alert</code></td><td>Current alert state.</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/v1/alert</code></td><td>Clear the alert and restore the lights to their previous state.</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/v1/health</code></td><td>Liveness + pairing status. No auth.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Request body for <code>POST /api/v1/alert</code></h3>
+  <table class="table">
+    <thead><tr><th>Field</th><th>Values</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><code>level</code></td><td><code>amber</code> · <code>red</code></td><td>Required. Amber = #FFBF00, Red = #FF0000.</td></tr>
+      <tr><td><code>mode</code></td><td><code>glow</code> · <code>dead</code></td><td>Required. <em>glow</em> pulses between min and max brightness; <em>dead</em> is a static colour at max brightness.</td></tr>
+      <tr><td><code>duration_seconds</code></td><td>1 – 86400</td><td>Optional. Auto-clear after this many seconds; omit to keep the alert until <code>DELETE</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Responses</h3>
+  <ul>
+    <li><code>200</code> — <code>{"status": "started", "alert": {"active": true, "level": "red", "mode": "glow", "started_at": "…", "expires_at": null, "light_ids": ["1","2"], "source": "api:monitoring"}}</code></li>
+    <li><code>401</code> — invalid or missing token</li>
+    <li><code>409</code> — no bridge paired or no lights selected</li>
+    <li><code>422</code> — invalid body (unknown level/mode, bad duration)</li>
+  </ul>
+
+  <h3>Examples</h3>
+  <pre><code># Red, glowing, until cleared
+curl -X POST {{ base_url }}/api/v1/alert \
+  -H "Authorization: Bearer $HUE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"level": "red", "mode": "glow"}'
+
+# Amber, static, auto-clear after 5 minutes
+curl -X POST {{ base_url }}/api/v1/alert \
+  -H "Authorization: Bearer $HUE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"level": "amber", "mode": "dead", "duration_seconds": 300}'
+
+# Status
+curl {{ base_url }}/api/v1/alert -H "Authorization: Bearer $HUE_TOKEN"
+
+# Clear
+curl -X DELETE {{ base_url }}/api/v1/alert -H "Authorization: Bearer $HUE_TOKEN"</code></pre>
+</section>

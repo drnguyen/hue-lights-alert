@@ -1,0 +1,32 @@
+services:
+  hue-lights:
+    build: .
+    image: hue-lights:latest
+    container_name: hue-lights
+    restart: unless-stopped
+    ports:
+      # host:container. PORT is the port the app listens on inside the container.
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      # Admin page login token. Set it in .env (see .env.example). Required.
+      - ADMIN_TOKEN=${ADMIN_TOKEN:?ADMIN_TOKEN must be set in .env}
+      # Optional: persistent cookie-signing key so admin sessions survive restarts.
+      - SESSION_SECRET=${SESSION_SECRET:-}
+      - SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-12}
+      - DISCOVERY_TIMEOUT_SECONDS=${DISCOVERY_TIMEOUT_SECONDS:-5}
+      - PORT=${PORT:-8000}
+      # HTTPS (default on). A self-signed certificate is generated into ./data/certs
+      # on first start. Set TLS_ENABLED=false for plain HTTP behind your own proxy.
+      - TLS_ENABLED=${TLS_ENABLED:-true}
+      - TLS_HOSTNAMES=${TLS_HOSTNAMES:-}
+      - TLS_CERT_DAYS=${TLS_CERT_DAYS:-3650}
+      - TLS_REGENERATE=${TLS_REGENERATE:-false}
+      # To use your own certificate, mount it and set both paths:
+      # - TLS_CERT_FILE=/certs/server.crt
+      # - TLS_KEY_FILE=/certs/server.key
+    volumes:
+      - ./data:/data
+    # mDNS bridge discovery needs the host network (Linux only). Uncomment the
+    # next line and remove the "ports" block to enable it. On Docker Desktop
+    # (macOS/Windows) use cloud discovery or enter the bridge IP manually.
+    # network_mode: host

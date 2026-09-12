@@ -1,0 +1,30 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hue-fake",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": [
+        "scripts/dev_fake_server.py"
+      ],
+      "env": {
+        "ADMIN_TOKEN": "dev",
+        "TLS_ENABLED": "false"
+      },
+      "port": 8765
+    },
+    {
+      "name": "hue-fake-tls",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": [
+        "scripts/dev_fake_server.py"
+      ],
+      "env": {
+        "ADMIN_TOKEN": "dev",
+        "PORT": "8766"
+      },
+      "port": 8766,
+      "url": "https://localhost:8766"
+    }
+  ]
+}

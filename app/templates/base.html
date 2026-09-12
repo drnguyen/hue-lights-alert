@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Hue Alert Lights{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css?v=2">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/admin">💡 Hue Alert Lights</a>
+      <nav>
+        <a href="/docs" target="_blank" rel="noopener">Swagger UI</a>
+        <a href="/openapi.json" target="_blank" rel="noopener">OpenAPI</a>
+        {% block nav %}{% endblock %}
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <div id="toast" class="toast" hidden></div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
